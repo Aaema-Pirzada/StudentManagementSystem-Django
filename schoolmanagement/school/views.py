@@ -1,3 +1,6 @@
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.shortcuts import render,redirect,reverse
 from . import forms,models
 from django.db.models import Sum
@@ -6,6 +9,9 @@ from django.http import HttpResponseRedirect
 from django.contrib.auth.decorators import login_required,user_passes_test
 from django.conf import settings
 from django.core.mail import send_mail
+from .forms import StudentUserForm, StudentExtraForm, TeacherUserForm, TeacherExtraForm
+from django.contrib.auth.models import User
+from django.contrib import messages
 
 def home_view(request):
     if request.user.is_authenticated:
@@ -58,47 +64,74 @@ def admin_signup_view(request):
 
 
 def student_signup_view(request):
-    form1=forms.StudentUserForm()
-    form2=forms.StudentExtraForm()
-    mydict={'form1':form1,'form2':form2}
-    if request.method=='POST':
-        form1=forms.StudentUserForm(request.POST)
-        form2=forms.StudentExtraForm(request.POST)
+    if request.method == 'POST':
+        form1 = StudentUserForm(request.POST)
+        form2 = StudentExtraForm(request.POST)
+
+        username = request.POST.get('username')
+        if User.objects.filter(username=username).exists():
+            form1.add_error('username', 'This username is already taken.')
+
+        password = request.POST.get('password')
+        try:
+            validate_password(password)
+        except ValidationError as e:
+            form1.is_valid()  # Ensure form1.is_valid() is False
+
         if form1.is_valid() and form2.is_valid():
-            user=form1.save()
-            user.set_password(user.password)
+            user = form1.save()
+            user.set_password(password)
             user.save()
-            f2=form2.save(commit=False)
-            f2.user=user
-            user2=f2.save()
 
-            my_student_group = Group.objects.get_or_create(name='STUDENT')
-            my_student_group[0].user_set.add(user)
+            student_extra = form2.save(commit=False)
+            student_extra.user = user
+            student_extra.save()
 
-        return HttpResponseRedirect('studentlogin')
-    return render(request,'school/studentsignup.html',context=mydict)
+            my_student_group, created = Group.objects.get_or_create(name='STUDENT')
+            my_student_group.user_set.add(user)
+
+            return HttpResponseRedirect('studentlogin')
+
+    else:
+        form1 = StudentUserForm()
+        form2 = StudentExtraForm()
+
+    mydict = {'form1': form1, 'form2': form2}
+    return render(request, 'school/studentsignup.html', context=mydict)
 
 
 def teacher_signup_view(request):
-    form1=forms.TeacherUserForm()
-    form2=forms.TeacherExtraForm()
-    mydict={'form1':form1,'form2':form2}
-    if request.method=='POST':
-        form1=forms.TeacherUserForm(request.POST)
-        form2=forms.TeacherExtraForm(request.POST)
-        if form1.is_valid() and form2.is_valid():
-            user=form1.save()
-            user.set_password(user.password)
-            user.save()
-            f2=form2.save(commit=False)
-            f2.user=user
-            user2=f2.save()
+   if request.method == 'POST':
+       form1 = TeacherUserForm(request.POST)
+       form2 = TeacherExtraForm(request.POST)
 
-            my_teacher_group = Group.objects.get_or_create(name='TEACHER')
-            my_teacher_group[0].user_set.add(user)
+       username = request.POST.get('username')
+       if User.objects.filter(username=username).exists():
+           form1.add_error('username', 'This username is already taken.')
 
-        return HttpResponseRedirect('teacherlogin')
-    return render(request,'school/teachersignup.html',context=mydict)
+       password = request.POST.get('password')
+       try:
+           validate_password(password)
+       except ValidationError as e:
+           form1.is_valid()
+       if form1.is_valid() and form2.is_valid():
+           user =form1.save()
+           user.set_password(password)
+           user.save()
+
+           teacher_extra = form2.save(commit=False)
+           teacher_extra.user = user
+           teacher_extra.save()
+
+           my_teacher_group = Group.objects.get_or_create(name='TEACHER')
+           my_teacher_group[0].user_set.add(user)
+           return HttpResponseRedirect('teacherlogin')
+   else:
+       form1 = TeacherUserForm()
+       form2 = TeacherExtraForm()
+
+   mydict = {'form1': form1, 'form2': form2}
+   return render(request, 'school/teachersignup.html', context=mydict)
 
 
 
@@ -152,6 +185,17 @@ def admin_dashboard_view(request):
 
     notice=models.Notice.objects.all()
 
+    username = request.POST.get('username')
+    password = request.POST.get('password')
+
+    user = authenticate(request, username=username, password=password)
+
+    if user is not None:
+        # User is valid, log them in
+        login(request, user)
+    else:
+        # User is not valid, display an error message
+        messages.error(request, 'Invalid username or password.')
     #aggregate function return dictionary so fetch data from dictionay
     mydict={
         'teachercount':teachercount,
@@ -507,6 +551,17 @@ def admin_notice_view(request):
 def teacher_dashboard_view(request):
     teacherdata=models.TeacherExtra.objects.all().filter(status=True,user_id=request.user.id)
     notice=models.Notice.objects.all()
+    username = request.POST.get('username')
+    password = request.POST.get('password')
+
+    user = authenticate(request, username=username, password=password)
+
+    if user is not None:
+        # User is valid, log them in
+        login(request, user)
+    else:
+        # User is not valid, display an error message
+        messages.error(request, 'Invalid username or password.')
     mydict={
         'salary':teacherdata[0].salary,
         'mobile':teacherdata[0].mobile,
@@ -592,6 +647,17 @@ def teacher_notice_view(request):
 def student_dashboard_view(request):
     studentdata=models.StudentExtra.objects.all().filter(status=True,user_id=request.user.id)
     notice=models.Notice.objects.all()
+    username = request.POST.get('username')
+    password = request.POST.get('password')
+
+    user = authenticate(request, username=username, password=password)
+
+    if user is not None:
+        # User is valid, log them in
+        login(request, user)
+    else:
+        # User is not valid, display an error message
+        messages.error(request, 'Invalid username or password.')
     mydict={
         'roll':studentdata[0].roll,
         'mobile':studentdata[0].mobile,

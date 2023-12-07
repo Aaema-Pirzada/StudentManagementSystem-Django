@@ -62,7 +62,7 @@
   <br>
   <br><br>
 
-  <!--- signup page for teacher by admin(Admin)  ---------->
+  <!--- signup page for teacher by admin(Aaema)  ---------->
   <form method="post">
     {% csrf_token %}
     <div class="container register-form">
@@ -77,6 +77,9 @@
 
               <div class="form-group">
                 {% render_field form.username class="form-control" placeholder="Username" %}
+                {% for error in form.username.errors %}
+                    <small class="text-danger">{{ error }}</small>
+                {% endfor %}
               </div>
 
             </div>
@@ -84,7 +87,15 @@
 
               <div class="form-group">
                 {% render_field form.password class="form-control" placeholder="Password" %}
+                {% for error in form.password.errors %}
+                    <small class="text-danger">{{ error }}</small>
+                {% endfor %}
               </div>
+              {% if form.errors %}
+                <div class="alert alert-danger">
+                  <strong>Error:</strong> Incorrect username or password.
+                </div>
+              {% endif %}
 
             </div>
           </div>
